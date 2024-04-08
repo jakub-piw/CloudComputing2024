@@ -8,21 +8,25 @@ terraform {
 }
 
 provider "google" {
-  project = "cloud-computing-2024-419513"
+  project = var.project
+  region  = var.region
+  zone    = var.zone
 }
 
+##############
+# BigQuery
+##############
+
 resource "google_bigquery_dataset" "meteo_dataset" {
-  dataset_id    = "meteo_dataset"
-  friendly_name = "Meteo Dataset"
-  description   = "Dataset for meteo purposes"
-  location      = "EU"
+  dataset_id = "meteo_dataset"
+  location   = var.location
 }
 
 resource "google_bigquery_table" "gefs" {
-  dataset_id = google_bigquery_dataset.meteo_dataset.dataset_id
-  table_id   = "gefs"
+  dataset_id          = google_bigquery_dataset.meteo_dataset.dataset_id
+  table_id            = "gefs"
   deletion_protection = false
-  schema = <<EOF
+  schema              = <<EOF
 [
   {
     "name": "time",
@@ -83,60 +87,95 @@ resource "google_bigquery_table" "gefs" {
 EOF
 
   time_partitioning {
-    type   = "DAY"
-    field  = "time"
+    type  = "DAY"
+    field = "time"
   }
 }
 
+##############
+# Bucket
+##############
+
 resource "google_storage_bucket" "meteo_bucket" {
-  name          = "meteo_bucket"
-  location      = "EU"
-  storage_class = "STANDARD"
+  name                        = "meteo_bucket_${var.project}"
+  location                    = var.location
+  storage_class               = "STANDARD"
   uniform_bucket_level_access = true
-  force_destroy = true
+  force_destroy               = true
 }
 
-resource "google_sql_database_instance" "database" {
+##############
+# CloudSQL
+##############
+
+resource "google_sql_database_instance" "database_instance" {
   name             = "database"
-  region           = "europe-west1"
+  region           = var.region
   database_version = "MYSQL_8_0"
   settings {
     tier = "db-f1-micro"
   }
 
-  deletion_protection  = "false"
+  deletion_protection  = false
 }
 
 resource "google_sql_database" "users_database" {
   name     = "users_database"
-  instance = google_sql_database_instance.database.name
+  instance = google_sql_database_instance.database_instance.name
 }
 
-resource "google_sql_user" "users" {
-  name     = "root"
-  instance = google_sql_database_instance.database.name
-  password = "root123"
-}
 
-resource "google_sql_database_instance" "user_table" {
-  name             = "user_table"
-  region           = "europe-west1"
-  database_version = "MYSQL_8_0"
+##############
+# CloudRun - streamlit
+##############
 
-  depends_on = [google_sql_database_instance.database]
+resource "google_cloud_run_v2_service" "streamlit_app" {
+  name     = "streamlitapp"
+  project = var.project
+  location = "us-central1"
 
-  settings {
-    tier = "db-f1-micro"
-  }
-
-  provisioner "remote-exec" {
-    inline = [
-      "mysql --user=root --password=root123 --host=${google_sql_database_instance.database.ip_address} --execute='CREATE TABLE users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255) NOT NULL, password VARCHAR(255) NOT NULL, email VARCHAR(255) NOT NULL)'"
-    ]
+  template {
+    containers {
+      image = "gcr.io/cloudrun/hello"
+    }
   }
 }
 
-# resource "google_app_engine_application" "app" {
-#   project     = "cloud-computing-2024-419513"
-#   location_id = "europe-west1"
-# }
+data "google_iam_policy" "noauth" {
+  binding {
+    role    = "roles/run.invoker"
+    members = ["allUsers"]
+  }
+}
+
+resource "google_cloud_run_service_iam_policy" "noauth_streamlit" {
+  location = "us-central1"
+  project  = var.project
+  service  = google_cloud_run_v2_service.streamlit_app.name
+
+  policy_data = data.google_iam_policy.noauth.policy_data
+}
+
+##############
+# CloudRun - api
+##############
+
+resource "google_cloud_run_v2_service" "api" {
+  name     = "api"
+  project = var.project
+  location = "us-central1"
+
+  template {
+    containers {
+      image = "gcr.io/cloudrun/hello"
+    }
+  }
+}
+
+resource "google_cloud_run_service_iam_policy" "noauth_api" {
+  location = "us-central1"
+  project  = var.project
+  service  = google_cloud_run_v2_service.api.name
+
+  policy_data = data.google_iam_policy.noauth.policy_data
+}
