@@ -37,80 +37,80 @@ data "google_project" "project" {}
 # BigQuery
 ##############
 
-# resource "google_bigquery_dataset" "meteo_dataset" {
-#   dataset_id = "meteo_dataset"
-#   location   = var.location
-# }
+resource "google_bigquery_dataset" "meteo_dataset" {
+  dataset_id = "meteo_dataset"
+  location   = var.location
+}
 
-# resource "google_bigquery_table" "gefs" {
-#   dataset_id          = google_bigquery_dataset.meteo_dataset.dataset_id
-#   table_id            = "gefs"
-#   deletion_protection = false
-#   schema              = <<EOF
-# [
-#   {
-#     "name": "time",
-#     "type": "TIMESTAMP",
-#     "mode": "NULLABLE"
-#   },
-#   {
-#     "name": "valid_time",
-#     "type": "TIMESTAMP",
-#     "mode": "NULLABLE"
-#   },
-#   {
-#     "name": "latitude",
-#     "type": "FLOAT",
-#     "mode": "NULLABLE"
-#   },
-#   {
-#     "name": "longitude",
-#     "type": "FLOAT",
-#     "mode": "NULLABLE"
-#   },
-#   {
-#     "name": "u10",
-#     "type": "FLOAT",
-#     "mode": "NULLABLE"
-#   },
-#   {
-#     "name": "v10",
-#     "type": "FLOAT",
-#     "mode": "NULLABLE"
-#   },
-#   {
-#     "name": "tp",
-#     "type": "FLOAT",
-#     "mode": "NULLABLE"
-#   },
-#   {
-#     "name": "tcc",
-#     "type": "FLOAT",
-#     "mode": "NULLABLE"
-#   },
-#   {
-#     "name": "t2m",
-#     "type": "FLOAT",
-#     "mode": "NULLABLE"
-#   },
-#   {
-#     "name": "gh",
-#     "type": "FLOAT",
-#     "mode": "NULLABLE"
-#   },
-#   {
-#     "name": "h",
-#     "type": "FLOAT",
-#     "mode": "NULLABLE"
-#   }
-# ]
-# EOF
+resource "google_bigquery_table" "gefs" {
+  dataset_id          = google_bigquery_dataset.meteo_dataset.dataset_id
+  table_id            = "gefs"
+  deletion_protection = false
+  schema              = <<EOF
+[
+  {
+    "name": "time",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "valid_time",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "latitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "longitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "number",
+    "type": "INT64",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "u10",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "v10",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "tp",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "tcc",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "t2m",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "prmsl",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  }
+]
+EOF
 
-#   time_partitioning {
-#     type  = "DAY"
-#     field = "time"
-#   }
-# }
+  time_partitioning {
+    type  = "DAY"
+    field = "time"
+  }
+}
 
 ##############
 # Bucket
