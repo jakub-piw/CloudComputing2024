@@ -16,7 +16,21 @@ provider "google" {
 data "google_project" "project" {}
 
 ##############
-# Service Account permissions
+# APIs
+##############
+
+resource "google_project_service" "dataproc" {
+ project = var.project
+ service = "dataproc.googleapis.com"
+}
+
+resource "google_project_service" "cloudscheduler" {
+  project = var.project
+  service = "cloudscheduler.googleapis.com"
+}
+
+##############
+# Service Accounts & permissions
 ##############
 
 ## necessary for the Cloud Build service account to deploy to Cloud Run
@@ -32,6 +46,55 @@ data "google_project" "project" {}
 #   member  = "serviceAccount:${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
 #   role    = "roles/iam.serviceAccountUser"
 # }
+
+## Dataproc & Cloud Scheduler service account
+
+resource "google_service_account" "scheduler_service_account" {
+  account_id   = "scheduler-service-account"
+  display_name = "Scheduler Service Account"
+}
+
+resource "google_project_iam_custom_role" "dataproc_runner_role" {
+  role_id = "dataprocWorkflowTemplateInstantiator"
+  title   = "Dataproc Workflow Template Instantiator"
+  permissions = [
+    "dataproc.workflowTemplates.instantiate",
+    "iam.serviceAccounts.actAs"
+  ]
+  project = var.project
+}
+
+resource "google_project_iam_member" "dataproc_scheduler" {
+  project = var.project
+  role    = google_project_iam_custom_role.dataproc_runner_role.name
+  member  = "serviceAccount:${google_service_account.scheduler_service_account.email}"
+}
+
+##############
+# Buckets
+##############
+
+# resource "google_storage_bucket" "meteo_bucket" {
+#   name                        = "meteo_bucket_${var.project}"
+#   location                    = var.location
+#   storage_class               = "STANDARD"
+#   uniform_bucket_level_access = true
+#   force_destroy               = true
+# }
+
+resource "google_storage_bucket" "meteoetl_bucket" {
+  name                        = "meteoetl-bucket"
+  location                    = var.location
+  storage_class               = "STANDARD"
+  uniform_bucket_level_access = true
+  force_destroy               = true
+}
+
+resource "google_storage_bucket_object" "update_gefs_script" {
+  name   = "update_gefs.py"
+  bucket = google_storage_bucket.meteoetl_bucket.name
+  source = "scripts/python/update_gefs.py"
+}
 
 ##############
 # BigQuery
@@ -113,16 +176,70 @@ EOF
 }
 
 ##############
-# Bucket
+# Dataproc
 ##############
 
-# resource "google_storage_bucket" "meteo_bucket" {
-#   name                        = "meteo_bucket_${var.project}"
-#   location                    = var.location
-#   storage_class               = "STANDARD"
-#   uniform_bucket_level_access = true
-#   force_destroy               = true
-# }
+resource "google_dataproc_workflow_template" "meteoetl_template" {
+  name     = "meteoetl-template"
+  location = var.region
+  placement {
+    managed_cluster {
+      cluster_name = "meteoetl-cluster"
+      config {
+        gce_cluster_config {
+          internal_ip_only = false
+          zone             = var.zone
+        }
+        master_config {
+          num_instances = 1
+          machine_type  = "n1-standard-2"
+          disk_config {
+            boot_disk_size_gb = 30
+          }
+        }
+        worker_config {
+          num_instances = 2
+          machine_type  = "n1-standard-2"
+          disk_config {
+            boot_disk_size_gb = 30
+          }
+        }
+        software_config {
+          image_version = "2.2.16-debian12"
+          properties = {
+            "dataproc:pip.packages"   = "pandas-gbq==0.23.0"
+            "dataproc:conda.packages" = "cfgrib==0.9.11.0"
+          }
+        }
+      }
+    }
+  }
+  jobs {
+    step_id = "update-gefs-job"
+    pyspark_job {
+      main_python_file_uri = "gs://${google_storage_bucket.meteoetl_bucket.name}/${google_storage_bucket_object.update_gefs_script.name}"
+    }
+  }
+}
+
+##############
+# Scheduler
+##############
+
+resource "google_cloud_scheduler_job" "meteoetl_job" {
+  name        = "meteoetl-job"
+  description = "Triggers the Dataproc Meteo ETL workflow template every day at 10 AM"
+  schedule    = "0 10 * * *"
+  time_zone   = "UTC"
+
+  http_target {
+    http_method = "POST"
+    uri         = "https://dataproc.googleapis.com/v1/projects/${var.project}/regions/${var.region}/workflowTemplates/${google_dataproc_workflow_template.meteoetl_template.name}:instantiate?alt=json"
+    oauth_token {
+      service_account_email = google_service_account.scheduler_service_account.email
+    }
+  }
+}
 
 ##############
 # CloudSQL
@@ -149,41 +266,41 @@ EOF
 # CloudRun - streamlit
 ##############
 
-# resource "null_resource" "build_streamlit_app_docker_image" {
-#   provisioner "local-exec" {
-#     command = "cd app && gcloud builds submit --region=${var.region} --tag gcr.io/${var.project}/streamlit-app:latest"
-#   }
-# }
+resource "null_resource" "build_streamlit_app_docker_image" {
+  provisioner "local-exec" {
+    command = "cd app && gcloud builds submit --region=${var.region} --tag gcr.io/${var.project}/streamlit-app:latest"
+  }
+}
 
-# resource "google_cloud_run_v2_service" "streamlit_app" {
-#   name     = "streamlit-app"
-#   project  = var.project
-#   location = var.region
-#   ingress  = "INGRESS_TRAFFIC_ALL"
+resource "google_cloud_run_v2_service" "streamlit_app" {
+  name     = "streamlit-app"
+  project  = var.project
+  location = var.region
+  ingress  = "INGRESS_TRAFFIC_ALL"
 
-#   template {
-#     containers {
-#       image   = "gcr.io/${var.project}/streamlit-app:latest"
-#       command = ["python"]
-#       args    = ["-m", "streamlit", "run", "app.py", "--server.port", "8080"]
-#     }
-#   }
-#   depends_on = [ null_resource.build_streamlit_app_docker_image ]
-# }
+  template {
+    containers {
+      image   = "gcr.io/${var.project}/streamlit-app:latest"
+      command = ["python"]
+      args    = ["-m", "streamlit", "run", "app.py", "--server.port", "8080"]
+    }
+  }
+  depends_on = [ null_resource.build_streamlit_app_docker_image ]
+}
 
-# data "google_iam_policy" "noauth" {
-#   binding {
-#     role    = "roles/run.invoker"
-#     members = ["allUsers"]
-#   }
-# }
+data "google_iam_policy" "noauth" {
+  binding {
+    role    = "roles/run.invoker"
+    members = ["allUsers"]
+  }
+}
 
-# resource "google_cloud_run_service_iam_policy" "noauth_streamlit" {
-#   location    = var.region
-#   project     = var.project
-#   service     = google_cloud_run_v2_service.streamlit_app.name
-#   policy_data = data.google_iam_policy.noauth.policy_data
-# }
+resource "google_cloud_run_service_iam_policy" "noauth_streamlit" {
+  location    = var.region
+  project     = var.project
+  service     = google_cloud_run_v2_service.streamlit_app.name
+  policy_data = data.google_iam_policy.noauth.policy_data
+}
 
 ## required for Continuous Deployment
 
