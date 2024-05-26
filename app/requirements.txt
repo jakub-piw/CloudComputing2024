@@ -1,2 +1,4 @@
 streamlit
 pandas-gbq
+google_auth_oauthlib
+google-api-python-client
