@@ -2,4 +2,5 @@
 .terraform.lock.hcl
 terraform.tfstate.backup
 env
-app/credentials.json
+app/modules/credentials.json
+__pycache__

@@ -26,7 +26,7 @@ def get_links_to_download():
         """
         SELECT DISTINCT time, valid_time, number
         FROM `meteo_dataset.gefs`
-        WHERE time = ( SELECT MAX(time) FROM `cloud-computing-2024-419618.meteo_dataset.gefs` )
+        WHERE time = ( SELECT MAX(time) FROM `meteo_dataset.gefs` )
     """,
         progress_bar_type=None,
     ).assign(
@@ -35,7 +35,7 @@ def get_links_to_download():
     )
 
     if existing_rows.empty:
-        start_date = dt.datetime(2024, 5, 22)
+        start_date = dt.datetime(2024, 5, 26)
     else:
         start_date = existing_rows["time"].max()
 
@@ -47,10 +47,10 @@ def get_links_to_download():
 
     def get_valid_time(time):
         if time.hour == 0:
-            end_time = time + pd.Timedelta("16d")
+            time = time + pd.Timedelta(hours=12)
+            end_time = time + pd.Timedelta(days=15, hours=12)
         elif time.hour == 12:
-            time = time + pd.Timedelta("12h")
-            end_time = time + pd.Timedelta("15d")
+            end_time = time + pd.Timedelta(days=15)
         return pd.date_range(start=time, end=end_time, freq="1d")
 
     correct_df = (
