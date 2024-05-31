@@ -5,14 +5,22 @@ import requests
 import seaborn as sns
 import streamlit as st
 
+from .config import API_URL
 
-def get_weather_forecast(latitude, longitude):
-    publication_date_str = st.session_state.publication_date.strftime("%Y-%m-%d")
 
-    # downloading data
-    url = f"http://127.0.0.1:5000/forecasts?longitude={longitude}&latitude={latitude}&publication_date={publication_date_str}"
+@st.cache_data
+def _download_data(longitude, latitude, publication_date):
+    publication_date_str = publication_date.strftime("%Y-%m-%d")
+    url = f"{API_URL}/forecasts?longitude={longitude}&latitude={latitude}&publication_date={publication_date_str}"
     r = requests.get(url)
     df = pd.read_csv(io.StringIO(r.text), parse_dates=["time", "valid_time"])
+    return df
+
+
+def get_weather_forecast(latitude, longitude):
+    # downloading data
+    publication_date = st.session_state.publication_date
+    df = _download_data(longitude, latitude, publication_date)
 
     # calculating weights to average the values between 4 points
     df["weight"] = 2 - (
@@ -74,7 +82,7 @@ def get_weather_forecast(latitude, longitude):
         return f"{emoji} {x.tcc/100:.0%}"
 
     df["tcc"] = df.apply(format_tcc, axis=1)
-    df["tp"] = df["tp"].apply(lambda x: f"{x:.1f}" if x > 0.5 else "")
+    df["tp"] = df["tp"].apply(lambda x: f"{x:.1f}")
     df["t2m"] = df["t2m"].apply(lambda x: f"{x:.0f}°")
     df["w"] = df["w"].apply(lambda x: f"{x:.1f}")
     df["prmsl"] = df["prmsl"].apply(lambda x: f"{x:.0f}")
@@ -90,6 +98,7 @@ def get_weather_forecast(latitude, longitude):
     df = df.rename(columns=column_mapper).T
     gmap = gmap.rename(columns=column_mapper).T
 
+    # styling the data
     t2m_cmap = sns.diverging_palette(
         h_neg=255, h_pos=0, s=99, l=95, sep=46, as_cmap=True
     )
@@ -113,7 +122,6 @@ def get_weather_forecast(latitude, longitude):
         reverse=True,
         as_cmap=True,
     )
-    prmsl_cmap = sns.light_palette((280, 99, 85), as_cmap=True, input="husl")
 
     df = (
         df.style.background_gradient(
@@ -137,14 +145,6 @@ def get_weather_forecast(latitude, longitude):
             gmap=gmap.loc["💨 Wind [km/h]"],
             vmin=0,
             vmax=20,
-        )
-        .background_gradient(
-            cmap=prmsl_cmap,
-            axis=1,
-            subset=pd.IndexSlice["🌀 Pressure [hPa]":"🌀 Pressure [hPa]"],
-            gmap=gmap.loc["🌀 Pressure [hPa]"],
-            vmin=990,
-            vmax=1030,
         )
     )
 

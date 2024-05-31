@@ -1,11 +1,4 @@
--- Create the users table
-CREATE TABLE users (
-    id VARCHAR(21) PRIMARY KEY
-);
-
--- Create the locations table
-CREATE TABLE locations (
+CREATE TABLE favourites (
     user_id VARCHAR(21),
-    location_id INT,
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    location_id INT
 );

@@ -2,3 +2,4 @@ Flask
 sqlalchemy
 google-cloud-alloydb-connector[pg8000]
 pandas-gbq
+google_auth_oauthlib
