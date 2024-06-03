@@ -276,7 +276,7 @@ resource "google_dataproc_workflow_template" "meteoetl_template" {
 ##############
 
 resource "google_cloud_scheduler_job" "meteoetl_job_am" {
-  name        = "meteoetl-job"
+  name        = "meteoetl-job-am"
   description = "Triggers the Dataproc Meteo ETL workflow template every day at 8 AM"
   schedule    = "0 8 * * *"
   time_zone   = "UTC"
@@ -291,7 +291,7 @@ resource "google_cloud_scheduler_job" "meteoetl_job_am" {
 }
 
 resource "google_cloud_scheduler_job" "meteoetl_job_pm" {
-  name        = "meteoetl-job"
+  name        = "meteoetl-job-pm"
   description = "Triggers the Dataproc Meteo ETL workflow template every day at 20 PM"
   schedule    = "0 20 * * *"
   time_zone   = "UTC"
@@ -327,38 +327,38 @@ resource "google_service_networking_connection" "vpc_connection" {
   reserved_peering_ranges = [google_compute_global_address.private_ip_alloc.name]
 }
 
-# resource "google_alloydb_cluster" "default" {
-#   cluster_id = "alloydb-cluster"
-#   location   = var.region
-#   network_config {
-#     network = google_compute_network.default.id
-#   }
+resource "google_alloydb_cluster" "default" {
+  cluster_id = "alloydb-cluster"
+  location   = var.region
+  network_config {
+    network = google_compute_network.default.id
+  }
 
-#   initial_user {
-#     user     = "alloydb_user"
-#     password = "alloydb_password"
-#   }
+  initial_user {
+    user     = "alloydb_user"
+    password = "alloydb_password"
+  }
 
-#   automated_backup_policy {
-#     enabled = false
-#   }
+  automated_backup_policy {
+    enabled = false
+  }
 
-#   continuous_backup_config {
-#     enabled = false
-#   }
-# }
+  continuous_backup_config {
+    enabled = false
+  }
+}
 
-# resource "google_alloydb_instance" "default" {
-#   cluster       = google_alloydb_cluster.default.name
-#   instance_id   = "alloydb-instance"
-#   instance_type = "PRIMARY"
+resource "google_alloydb_instance" "default" {
+  cluster       = google_alloydb_cluster.default.name
+  instance_id   = "alloydb-instance"
+  instance_type = "PRIMARY"
 
-#   machine_config {
-#     cpu_count = 2
-#   }
+  machine_config {
+    cpu_count = 2
+  }
 
-#   depends_on = [google_service_networking_connection.vpc_connection]
-# }
+  depends_on = [google_service_networking_connection.vpc_connection]
+}
 
 ##############
 # CloudRun - streamlit

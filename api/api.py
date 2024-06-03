@@ -5,8 +5,7 @@ import pandas_gbq
 import sqlalchemy
 from flask import Flask, jsonify, make_response, request
 from google.auth.transport import requests
-
-# from google.cloud.alloydb.connector import Connector
+from google.cloud.alloydb.connector import Connector
 from google.oauth2 import id_token
 
 app = Flask(__name__)
@@ -20,25 +19,24 @@ CLIENT_ID = credentials["web"]["client_id"]
 PROJECT_ID = credentials["web"]["project_id"]
 
 ## database connection
-# connector = Connector()
+connector = Connector()
 
 
-# def getconn():
-#     conn = connector.connect(
-#         f"projects/{PROJECT_ID}/locations/europe-west1/clusters/alloydb-cluster/instances/alloydb-instance",
-#         "pg8000",
-#         user="alloydb_user",
-#         password="alloydb_password",
-#         db="postgres",
-#     )
-#     return conn
+def getconn():
+    conn = connector.connect(
+        f"projects/{PROJECT_ID}/locations/europe-west1/clusters/alloydb-cluster/instances/alloydb-instance",
+        "pg8000",
+        user="alloydb_user",
+        password="alloydb_password",
+        db="postgres",
+    )
+    return conn
 
 
-# pool = sqlalchemy.create_engine(
-#     "postgresql+pg8000://",
-#     creator=getconn,
-# )
-pool = sqlalchemy.create_engine("sqlite:///favourites.db")
+pool = sqlalchemy.create_engine(
+    "postgresql+pg8000://",
+    creator=getconn,
+)
 
 ## database functions
 check_sql = sqlalchemy.text(
@@ -165,5 +163,4 @@ def modify_favourite(location_id):
 
 
 if __name__ == "__main__":
-    # app.run(host="0.0.0.0", port=8080)
-    app.run()
+    app.run(host="0.0.0.0", port=8080)
